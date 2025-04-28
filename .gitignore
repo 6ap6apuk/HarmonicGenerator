@@ -361,6 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/HarmonicGenerator/HarmonicGenerator - heychat.cpp
 /HarmonicGenerator/HarmonicGenerator - giga.cpp
-/HarmonicGenerator/HarmonicGenerator - Copy.cpp
+/HarmonicGenerator/HarmonicGenerator - Copy (2).cpp
+/HarmonicGenerator/HarmonicGenerator - heychat.cpp
