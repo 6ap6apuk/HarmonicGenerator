@@ -1,83 +1,116 @@
-﻿#include <Windows.h>
-#include <iostream>
+﻿#include <iostream>
+#include <fstream>
 #include <vector>
-#include <fstream>  // Добавили библиотеку для работы с файлами
 #include <cmath>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <complex>
+#include <algorithm>
+#include <windows.h>
+#include <fftw3.h>
+#pragma comment(lib, "libfftw3-3.lib")
 
 using namespace std;
 
-int main()
-{
+const int maxHarmonics = 4;
 
+struct HarmonicParams {
+    double amplitude;
+    double frequency;
+    double initialPhaseDegrees;
+};
+
+// Функция для загрузки параметров из файла
+bool loadFromFile(const string& filename, vector<HarmonicParams>& harmonics, int& numHarmonics, double& samplingFreq, double& deltaT, int& numPoints) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file '" << filename << "'" << endl;
+        return false;
+    }
+
+    file >> numHarmonics;
+    if (numHarmonics <= 0 || numHarmonics > maxHarmonics) {
+        cerr << "Invalid number of harmonics in file." << endl;
+        return false;
+    }
+
+    harmonics.resize(numHarmonics);
+    for (int i = 0; i < numHarmonics; ++i) {
+        file >> harmonics[i].amplitude
+            >> harmonics[i].frequency
+            >> harmonics[i].initialPhaseDegrees;
+    }
+
+    file >> samplingFreq >> deltaT >> numPoints;
+    return true;
+}
+
+// Функция для ручного ввода параметров
+void manualInput(vector<HarmonicParams>& harmonics, int& numHarmonics, double& samplingFreq, double& deltaT, int& numPoints) {
+    cout << "Введите количество гармоник (не более 4): ";
+    cin >> numHarmonics;
+    if (numHarmonics <= 0 || numHarmonics > maxHarmonics) {
+        cerr << "Ошибка! Количество гармоник должно быть от 1 до 4." << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    harmonics.resize(numHarmonics);
+    for (int i = 0; i < numHarmonics; ++i) {
+        cout << "Введите амплитуду для гармоники " << i + 1 << ": ";
+        cin >> harmonics[i].amplitude;
+        cout << "Введите частоту для гармоники " << i + 1 << ": ";
+        cin >> harmonics[i].frequency;
+        cout << "Введите начальную фазу для гармоники " << i + 1 << "(градусы): ";
+        cin >> harmonics[i].initialPhaseDegrees;
+    }
+
+    cout << "Введите частоту дискретизации: ";
+    cin >> samplingFreq;
+    cout << "Введите шаг времени дельта-t: ";
+    cin >> deltaT;
+    cout << "Введите количество точек для генерации сигнала: ";
+    cin >> numPoints;
+}
+
+int main() {
     SetConsoleCP(1251);
     SetConsoleOutputCP(1251);
 
-    // Максимальное количество гармоник
-    const int maxHarmonics = 4;
-
-    // Ввод количества гармоник
-    cout << "Введите количество гармоник (не более 4): ";
-    int numHarmonics;
-    cin >> numHarmonics;
-
-    // Проверяем корректность ввода количества гармоник
-    if (numHarmonics <= 0 || numHarmonics > maxHarmonics) {
-        cerr << "Ошибка! Количество гармоник должно быть от 1 до 4." << endl;
-        return 1;
-    }
-
-    vector<double> amplitudes(numHarmonics);      // Амплитуды гармоник
-    vector<double> frequencies(numHarmonics);     // Частоты гармоник
-    vector<double> initialPhases(numHarmonics);   // Начальные фазы гармоник
-
-    // Ввод амплитуд, частот и начальных фаз гармоник
-    for (int i = 0; i < numHarmonics; ++i) {
-        double amplitude;
-        cout << "Введите амплитуду для гармоники " << i + 1 << ": ";
-        cin >> amplitude;
-        amplitudes[i] = amplitude;
-
-        double frequency;
-        cout << "Введите частоту для гармоники " << i + 1 << ": ";
-        cin >> frequency;
-        frequencies[i] = frequency;
-
-        double phase;
-        cout << "Введите начальную фазу для гармоники " << i + 1 << ": ";
-        cin >> phase;
-        initialPhases[i] = phase * M_PI / 180;  // Преобразуем градусы в радианы
-    }
-
-    // Ввод частоты дискретизации
-    cout << "Введите частоту дискретизации: ";
-    double samplingFrequency;
-    cin >> samplingFrequency;
-
-    // Ввод шага времени дельта-t
-    cout << "Введите шаг времени дельта-t: ";
-    double deltaT;
-    cin >> deltaT;
-
-    // Ввод количества точек для генерации сигнала
-    cout << "Введите количество точек для генерации сигнала: ";
+    vector<HarmonicParams> harmonics(maxHarmonics);
+    int numHarmonics, inputMethod;
+    double samplingFreq, deltaT;
     int numPoints;
-    cin >> numPoints;
 
-    // Генерация массива значений сигнала
+    cout << "Выберите источник параметров:\n";
+    cout << "0 - Ручной ввод\n";
+    cout << "1 - Загрузка из файла 'params.txt'\n";
+    cin >> inputMethod;
+
+    if (inputMethod == 0) {
+        manualInput(harmonics, numHarmonics, samplingFreq, deltaT, numPoints);
+    }
+    else if (inputMethod == 1) {
+        bool success = loadFromFile("params.txt", harmonics, numHarmonics, samplingFreq, deltaT, numPoints);
+        if (!success) {
+            cerr << "Ошибка загрузки из файла. Используйте ручной ввод.\n";
+            manualInput(harmonics, numHarmonics, samplingFreq, deltaT, numPoints);
+        }
+    }
+    else {
+        cerr << "Некорректный выбор метода ввода." << endl;
+        return EXIT_FAILURE;
+    }
+
     vector<vector<double>> signalValues(numHarmonics, vector<double>(numPoints));
-
     for (int harmonicIndex = 0; harmonicIndex < numHarmonics; ++harmonicIndex) {
         for (int timeIndex = 0; timeIndex < numPoints; ++timeIndex) {
             double time = timeIndex * deltaT;
-            signalValues[harmonicIndex][timeIndex] =
-                amplitudes[harmonicIndex] *
-                sin(2 * M_PI * frequencies[harmonicIndex] * time + initialPhases[harmonicIndex]);
+            double phaseRad = harmonics[harmonicIndex].initialPhaseDegrees * M_PI / 180.0;
+            signalValues[harmonicIndex][timeIndex] = harmonics[harmonicIndex].amplitude *
+                sin(2 * M_PI * harmonics[harmonicIndex].frequency * time + phaseRad);
         }
     }
 
-    // Суммируем значения по гармоникам в одном массиве
     vector<double> resultantSignal(numPoints);
     for (int timeIndex = 0; timeIndex < numPoints; ++timeIndex) {
         double sum = 0.0;
@@ -87,28 +120,23 @@ int main()
         resultantSignal[timeIndex] = sum;
     }
 
-    // Запись данных в текстовый файл
+    // Запись данных в файл
     ofstream outputFile("result.txt");
     if (outputFile.is_open()) {
-        // Запишем заголовок файла
         outputFile << "Время\t";
         for (int i = 1; i <= numHarmonics; ++i) {
             outputFile << "Гармоника_" << i << "\t";
         }
         outputFile << "Результирующая_гармоника\n";
 
-        // Запишем данные
         for (int timeIndex = 0; timeIndex < numPoints; ++timeIndex) {
             double time = timeIndex * deltaT;
-            outputFile << time << "\t";  // Время
-
+            outputFile << time << "\t";
             for (int harmonicIndex = 0; harmonicIndex < numHarmonics; ++harmonicIndex) {
                 outputFile << signalValues[harmonicIndex][timeIndex] << "\t";
             }
-
-            outputFile << resultantSignal[timeIndex] << "\n";  // Результирующий сигнал
+            outputFile << resultantSignal[timeIndex] << "\n";
         }
-
         outputFile.close();
         cout << "Данные успешно записаны в файл result.txt!" << endl;
     }
